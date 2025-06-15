@@ -12,7 +12,6 @@
 #define BAUD_RATE 115200
 #define HTTP_NOT_REQUESTED_YET -999
 #define STRING_BUFFER_SIZE 256
-#define JSON_CAPACITY 32768
 
 // Display and UI constants
 #define TEMPERATURE_GRAPH_LINE_WIDTH 2
@@ -39,7 +38,7 @@ private:
   String jsonBuffer;
   String errorMessageBuffer;
   int httpResponseCode = HTTP_NOT_REQUESTED_YET;
-  DynamicJsonDocument weatherApiResponse = DynamicJsonDocument(JSON_CAPACITY);
+  JsonDocument weatherApiResponse;
   bool ledState = false;
 
   /**
@@ -490,7 +489,7 @@ private:
     char buffer[STRING_BUFFER_SIZE];
 
     String icon;
-    if (hourlyData["weather"][0].containsKey("icon"))
+    if (hourlyData["weather"][0]["icon"].is<String>())
     {
       icon = "icon_" + hourlyData["weather"][0]["icon"].as<String>();
     }
@@ -539,7 +538,7 @@ private:
     char buffer[STRING_BUFFER_SIZE];
 
     // Check if hourly data exists
-    if (!weatherApiResponse.containsKey("hourly"))
+    if (!weatherApiResponse["hourly"].is<JsonArray>())
     {
       memset(buffer, 0, sizeof(buffer));
       snprintf(buffer, sizeof(buffer), "%s", "Error: API not responding with hourly forecast data.");
@@ -571,7 +570,7 @@ private:
 
       JsonObject hourly = weatherApiResponse["hourly"][i];
 
-      if (!hourly.containsKey("weather") || hourly["weather"].size() == 0)
+      if (!hourly["weather"].is<JsonArray>() || hourly["weather"].size() == 0)
       {
         Serial.println("No weather data for this hour");
         continue;
@@ -630,7 +629,7 @@ private:
     char buffer[STRING_BUFFER_SIZE];
 
     // Check if hourly data exists
-    if (!weatherApiResponse.containsKey("hourly"))
+    if (!weatherApiResponse["hourly"].is<JsonObject>())
     {
       memset(buffer, 0, sizeof(buffer));
       snprintf(buffer, sizeof(buffer), "%s", "Error: No hourly data available");
@@ -760,7 +759,7 @@ private:
     x += 75;
 
     // Display event type
-    if (alert.containsKey("event"))
+    if (alert["event"].is<String>())
     {
       String event = alert["event"].as<String>();
       event[0] = toupper(event[0]);
@@ -770,7 +769,7 @@ private:
       y += 45;
     }
 
-    if (alert.containsKey("sender_name") && alert.containsKey("start") && alert.containsKey("end"))
+    if (alert["sender_name"].is<String>() && alert["start"].is<long>() && alert["end"].is<long>())
     {
       String senderName = alert["sender_name"].as<String>();
       long startTime = alert["start"].as<long>();
@@ -793,7 +792,7 @@ private:
       y += 25;
     }
 
-    if (alert.containsKey("description"))
+    if (alert["description"].is<String>())
     {
       String desc = removeWarningDescription(alert["description"].as<String>());
 
@@ -837,8 +836,8 @@ private:
   {
     char buffer[STRING_BUFFER_SIZE];
 
-    if ((weatherApiResponse["current"].containsKey("snow")) &&
-        (weatherApiResponse["current"]["snow"].containsKey("1h")))
+    if ((weatherApiResponse["current"]["snow"].is<JsonObject>()) &&
+          (weatherApiResponse["current"]["snow"]["1h"].is<String>()))
     {
       // Snow
       memset(buffer, 0, sizeof(buffer));
@@ -849,8 +848,8 @@ private:
       snprintf(buffer, sizeof(buffer), "mm snow");
       EPD_ShowString(centerX + unitOffsetX, y + unitOffsetY, buffer, FONT_SIZE_16, BLACK, false);
     }
-    else if ((weatherApiResponse["current"].containsKey("rain")) &&
-             (weatherApiResponse["current"]["rain"].containsKey("1h")))
+    else if ((weatherApiResponse["current"]["rain"].is<JsonObject>()) &&
+              (weatherApiResponse["current"]["rain"]["1h"].is<String>()))
     {
       // Rain
       memset(buffer, 0, sizeof(buffer));
@@ -861,8 +860,8 @@ private:
       snprintf(buffer, sizeof(buffer), "mm rain");
       EPD_ShowString(centerX + unitOffsetX, y + unitOffsetY, buffer, FONT_SIZE_16, BLACK, false);
     }
-    else if ((weatherApiResponse["current"].containsKey("uvi")) &&
-             (weatherApiResponse["current"]["uvi"].as<float>() > UVI_DISPLAY_THRESHOLD))
+    else if ((weatherApiResponse["current"]["uvi"].is<float>()) &&
+              (weatherApiResponse["current"]["uvi"].as<float>() > UVI_DISPLAY_THRESHOLD))
     {
       // UVI
       memset(buffer, 0, sizeof(buffer));
@@ -940,7 +939,7 @@ private:
 
     if (
         (ENABLE_ALERT_DISPLAY == true)
-        && weatherApiResponse.containsKey("alerts")
+        && weatherApiResponse["alerts"].is<JsonArray>()
         && weatherApiResponse["alerts"].size() > 0
       )
     {
@@ -1155,7 +1154,7 @@ private:
       }
 
       // Check for weather alerts
-      if (weatherApiResponse.containsKey("alerts") && weatherApiResponse["alerts"].size() > 0)
+      if (weatherApiResponse["alerts"].is<JsonArray>() && weatherApiResponse["alerts"].size() > 0)
       {
         // Current time in unix timestamp
         time_t now = currentTime;
@@ -1163,7 +1162,7 @@ private:
         // Iterate through alerts to find closest upcoming start or end time
         for (size_t i = 0; i < weatherApiResponse["alerts"].size(); i++)
         {
-          if (weatherApiResponse["alerts"][i].containsKey("start"))
+          if (weatherApiResponse["alerts"][i]["start"].is<long>())
           {
             time_t alertStartTime = weatherApiResponse["alerts"][i]["start"].as<long>();
 
@@ -1181,7 +1180,7 @@ private:
             }
           }
 
-          if (weatherApiResponse["alerts"][i].containsKey("end"))
+          if (weatherApiResponse["alerts"][i]["end"].is<long>())
           {
             time_t alertEndTime = weatherApiResponse["alerts"][i]["end"].as<long>();
 
